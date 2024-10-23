@@ -29,6 +29,57 @@ class validate_flags_arg(argparse.Action):
 
 # Espressif #
 
+def run_espressif_tool(cmd):
+    tool = "esptool.py"
+    strings_out = subprocess.check_output(
+        [tool, cmd], universal_newlines=True
+    )
+
+    return strings_out
+
+def get_espressif_chip_id():
+    output = run_espressif_tool("chip_id")
+    string_out = next((s for s in output.split("\n") if "Chip ID" in s), "Not found")
+    if string_out != "Not found":
+        string_out = string_out.split("Warning: ")[-1]
+    return string_out
+
+def get_espressif_flash_id():
+    strings_out = []
+    output = run_espressif_tool("flash_id")
+
+    strings_out.append(next((s for s in output.split("\n") if "Manufacturer" in s), "Not found"))
+    strings_out.append(next((s for s in output.split("\n") if "Device" in s), "Not found"))
+
+    return strings_out
+
+def get_espressif_security_info():
+    output = run_espressif_tool("get_security_info")
+
+    start_string = "====================="
+    stop_string = "Hard resetting via RTS pin..."
+    output = output.split("\n")
+    start_index = output.index(start_string) + 1
+    stop_index = output.index(stop_string)
+
+    strings_out = output[start_index:stop_index]
+    return strings_out
+
+def get_espressif_flash_status():
+    output = run_espressif_tool("read_flash_status")
+
+    string_out = next((s for s in output.split("\n") if "Status value" in s), "Not found")
+    if string_out != "Not found":
+        string_out = string_out.split("Status value: ")[-1]
+    return string_out
+
+def get_espressif_mac_address():
+    output = run_espressif_tool("read_mac")
+
+    string_out = next((s for s in output.split("\n") if "MAC" in s), "Not found")
+    if string_out != "Not found":
+        string_out = string_out.split("MAC: ")[-1]
+    return string_out
 
 def get_espressif_bootloader_version(bindir):
     """
@@ -556,6 +607,40 @@ def generate_header(args):
         output += 'static const char ESPRESSIF_HAL[] = "{}";\n\n'.format(
             info["ESPRESSIF_HAL"]
         )
+
+        if info["ESPRESSIF_ESPTOOL"] not in "Not found":
+            info["ESPRESSIF_CHIP_ID"] = get_espressif_chip_id()
+            output += 'static const char ESPRESSIF_CHIP_ID[] = "{}";\n\n'.format(
+                info["ESPRESSIF_CHIP_ID"]
+            )
+
+            info["ESPRESSIF_FLASH_ID"] = get_espressif_flash_id()
+            output += "#define ESPRESSIF_FLASH_ID_ARRAY_SIZE {}\n".format(
+                    len(info["ESPRESSIF_FLASH_ID"])
+                )
+            output += "static const char *ESPRESSIF_FLASH_ID[ESPRESSIF_FLASH_ID_ARRAY_SIZE] =\n{\n"
+            for each_item in info["ESPRESSIF_FLASH_ID"]:
+                output += '  "{}",\n'.format(each_item)
+            output += "};\n\n"
+
+            info["ESPRESSIF_SECURITY_INFO"] = get_espressif_security_info()
+            output += "#define ESPRESSIF_SECURITY_INFO_ARRAY_SIZE {}\n".format(
+                    len(info["ESPRESSIF_SECURITY_INFO"])
+                )
+            output += "static const char *ESPRESSIF_SECURITY_INFO[ESPRESSIF_SECURITY_INFO_ARRAY_SIZE] =\n{\n"
+            for each_item in info["ESPRESSIF_SECURITY_INFO"]:
+                output += '  "{}",\n'.format(each_item)
+            output += "};\n\n"
+
+            info["ESPRESSIF_FLASH_STAT"] = get_espressif_flash_status()
+            output += 'static const char ESPRESSIF_FLASH_STAT[] = "{}";\n\n'.format(
+                info["ESPRESSIF_FLASH_STAT"]
+            )
+
+            info["ESPRESSIF_MAC_ADDR"] = get_espressif_mac_address()
+            output += 'static const char ESPRESSIF_MAC_ADDR[] = "{}";\n\n'.format(
+                info["ESPRESSIF_MAC_ADDR"]
+            )
 
     output += "#endif /* __SYSTEM_INFO_H */\n"
 
