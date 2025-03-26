@@ -38,6 +38,7 @@
 #include <unistd.h>
 
 #include <nuttx/leds/ws2812.h>
+#include <nuttx/video/rgbcolors.h>
 
 /****************************************************************************
  * Private Types
@@ -49,6 +50,7 @@ struct neo_config_s
   int       loops;
   int       leds;
   int       delay;
+  bool      kirby;
 };
 
 /****************************************************************************
@@ -60,8 +62,21 @@ struct neo_config_s config =
   NULL,                    /* path  - default set in main */
   4,                       /* loop  - all colors 4 times  */
   CONFIG_WS2812_LED_COUNT, /* leds  - based on config     */
-  20000                    /* delay - (in µs)  ~50Hz      */
+  20000,                   /* delay - (in µs)  ~50Hz      */
+  0                        /* no kirby */
 };
+
+
+uint32_t rgb_matrix[64][3] = { {0,183,239}, {0,183,239}, {0,183,239}, {0,183,239}, {0,183,239}, {0,183,239}, {0,183,239}, {0,183,239},
+                               {0,183,239}, {0,183,239}, {238,187,204}, {238,187,204}, {238,187,204}, {238,187,204}, {0,183,239}, {0,183,239},
+                               {0,183,239}, {238,187,204}, {238,187,204}, {238,187,204}, {238,187,204}, {238,187,204}, {238,187,204}, {0,183,239},
+                               {0,183,239}, {235,133,172}, {238,187,204}, {0,0,0}, {238,187,204}, {0,0,0}, {238,187,204}, {235,133,172}, 
+                               {235,133,172}, {238,187,204}, {238,187,204}, {67,80,174}, {238,187,204}, {67,80,174}, {238,187,204}, {235,133,172},
+                               {235,133,172}, {235,133,172}, {227,91,137}, {238,187,204}, {238,187,204}, {238,187,204}, {227,91,137}, {0,183,239},
+                               {0,183,239}, {180,43,97}, {235,133,172}, {235,133,172}, {238,187,204}, {238,187,204}, {180,43,97}, {0,183,239},
+                               {0,183,239}, {180,43,97}, {198,51,96}, {198,51,96}, {0,183,239}, {180,43,97}, {198,51,96}, {0,183,239}
+};
+
 
 /****************************************************************************
  * Private Functions
@@ -95,6 +110,9 @@ static void help(FAR struct neo_config_s *conf)
   printf("  [-d delay] selects delay between updates.  "
          "Default: %d us Current: %d us\n",
          20000, conf->delay);
+
+  printf("  [-k] print kirby onto 8x8 matrix."
+         "Default: false\n");
 }
 
 /****************************************************************************
@@ -217,6 +235,12 @@ static void parse_args(FAR struct neo_config_s *conf,
             index += nargs;
             break;
 
+          case 'k':
+            conf->kirby = 1;
+            config.leds = 64;
+            index = argc;
+            break;
+
           case 'h':
             help(conf);
             exit(0);
@@ -278,12 +302,22 @@ int main(int argc, FAR char *argv[])
         {
           bp  = buffer;
 
-          for (int k = 0; k < config.leds; ++k)
+          if (config.kirby)
             {
-              *bp++ = ws2812_gamma_correct(
-                          ws2812_hsv_to_rgb((j + k) & 0xff,
-                                            0xff,
-                                            0xff));
+              for (int k = 0; k < 64; ++k)
+                {
+                  *bp++ = ws2812_gamma_correct(RGBTO24(rgb_matrix[k][0], rgb_matrix[k][1], rgb_matrix[k][2]));
+                }
+            }
+          else
+            {
+              for (int k = 0; k < config.leds; ++k)
+                {
+                  *bp++ = ws2812_gamma_correct(
+                              ws2812_hsv_to_rgb((j + k) & 0xff,
+                                                0xff,
+                                                0xff));
+                }
             }
 
           lseek(fd, 0, SEEK_SET);
